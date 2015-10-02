@@ -77,25 +77,24 @@ class Cli < Thor
     default: true
 
   def setup
-    if Process.uid != 0
-      warn "Must run as root user"
-      exit 1
-    end
-
-    if options["ldap-enable"] && (options["ldap-hostname"].nil? || options["ldap-hostname"].empty?)
-      warn "LDAP support is enabled but you didn't specify a value for ldap-hostname"
-      exit 1
-    end
+    ensure_root
+    check_setup_flags
 
     configure = Configurator.new(options)
     configure.apache
     configure.ssl
     configure.database_config
-    configure.registry if options["local-registry"]
+    registry_config = configure.registry
     configure.secrets
     configure.config_local
     configure.create_database
     configure.services
+
+    unless options["local-registry"]
+      puts "Ensure the registry running on another host is configured properly"
+      puts "This is a working configuration file you might want to use:"
+      puts registry_config
+    end
   end
 
   desc "rake ARGS...", "Run a rake task against Portus"
@@ -118,5 +117,21 @@ class Cli < Thor
     exec_args = args[1, args.size] if args.size > 1
 
     Runner.bundler_exec(args[0], exec_args, {})
+  end
+
+  private
+
+  def ensure_root
+    if Process.uid != 0
+      warn "Must run as root user"
+      exit 1
+    end
+  end
+
+  def check_setup_flags
+    if options["ldap-enable"] && (options["ldap-hostname"].nil? || options["ldap-hostname"].empty?)
+      warn "LDAP support is enabled but you didn't specify a value for ldap-hostname"
+      exit 1
+    end
   end
 end
